@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
         self._toolbar.new_folder.connect(self._create_new_folder)
         self._toolbar.open_settings.connect(self._open_settings)
         self._toolbar.show_starred.connect(self._show_starred)
+        self._toolbar.view_mode_changed.connect(self._on_view_mode_changed)
         main_layout.addWidget(self._toolbar)
 
         outer_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -233,6 +234,9 @@ class MainWindow(QMainWindow):
             else:
                 import subprocess
                 subprocess.Popen(["xdg-open", path])
+
+    def _on_view_mode_changed(self, mode: str):
+        self._file_table.set_view_mode(mode)
 
     def _on_file_starred(self, path: str, starred: bool):
         self._refresh_current()

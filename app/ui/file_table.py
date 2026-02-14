@@ -4,12 +4,13 @@ import sys
 from datetime import datetime
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel
+from PyQt6.QtCore import Qt, pyqtSignal, QAbstractTableModel, QAbstractListModel, QModelIndex, QSize
 from PyQt6.QtWidgets import (
-    QTableView, QVBoxLayout, QWidget, QMenu, QAbstractItemView,
-    QHeaderView, QMessageBox, QInputDialog, QFileDialog,
+    QTableView, QListView, QVBoxLayout, QWidget, QMenu, QAbstractItemView,
+    QHeaderView, QMessageBox, QInputDialog, QFileDialog, QStackedWidget,
+    QStyledItemDelegate, QStyle, QApplication,
 )
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QIcon, QFont, QPainter, QColor, QPen
 
 from app.config import format_file_size
 from app.core.tag_manager import toggle_star, is_starred, add_tag, get_tags_for_file
@@ -116,6 +117,135 @@ class FileTableModel(QAbstractTableModel):
         self.endResetModel()
 
 
+class GridItemDelegate(QStyledItemDelegate):
+    def __init__(self, icon_size: int = 48, parent=None):
+        super().__init__(parent)
+        self._icon_size = icon_size
+
+    def paint(self, painter: QPainter, option, index):
+        painter.save()
+        rect = option.rect
+
+        if option.state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(rect, QColor("#e3f2fd"))
+            painter.setPen(QPen(QColor("#90caf9"), 1))
+            painter.drawRect(rect.adjusted(0, 0, -1, -1))
+        elif option.state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(rect, QColor("#f5f5f5"))
+
+        f = index.data(Qt.ItemDataRole.UserRole)
+        if not f:
+            painter.restore()
+            return
+
+        is_dir = f.get("is_directory", False)
+        is_star = f.get("is_starred", 0)
+        name = f.get("name", "")
+        ext = f.get("extension", "") or ""
+
+        icon_rect_y = rect.top() + 8
+        icon_rect_x = rect.center().x() - self._icon_size // 2
+
+        icon_text = "\U0001f4c1" if is_dir else self._get_file_icon(ext)
+        icon_font = QFont()
+        icon_font.setPointSize(self._icon_size // 2)
+        painter.setFont(icon_font)
+        painter.setPen(QColor("#333"))
+        painter.drawText(
+            icon_rect_x, icon_rect_y, self._icon_size, self._icon_size,
+            Qt.AlignmentFlag.AlignCenter, icon_text
+        )
+
+        if is_star:
+            star_font = QFont()
+            star_font.setPointSize(10)
+            painter.setFont(star_font)
+            painter.setPen(QColor("#FF9800"))
+            painter.drawText(rect.right() - 18, rect.top() + 2, 16, 16,
+                             Qt.AlignmentFlag.AlignCenter, "\u2605")
+
+        name_font = QFont()
+        name_font.setPointSize(9)
+        painter.setFont(name_font)
+        painter.setPen(QColor("#1a1a1a"))
+        name_rect_top = icon_rect_y + self._icon_size + 4
+        metrics = painter.fontMetrics()
+        elided = metrics.elidedText(name, Qt.TextElideMode.ElideMiddle, rect.width() - 8)
+        painter.drawText(
+            rect.left() + 4, name_rect_top, rect.width() - 8, 20,
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, elided
+        )
+
+        if not is_dir and self._icon_size >= 64:
+            size_str = format_file_size(f.get("size", 0))
+            size_font = QFont()
+            size_font.setPointSize(8)
+            painter.setFont(size_font)
+            painter.setPen(QColor("#888"))
+            painter.drawText(
+                rect.left() + 4, name_rect_top + 16, rect.width() - 8, 16,
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, size_str
+            )
+
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        if self._icon_size >= 64:
+            return QSize(140, 120)
+        return QSize(100, 90)
+
+    def _get_file_icon(self, ext: str) -> str:
+        icon_map = {
+            ".pdf": "\U0001f4d1", ".doc": "\U0001f4dd", ".docx": "\U0001f4dd",
+            ".xls": "\U0001f4ca", ".xlsx": "\U0001f4ca", ".csv": "\U0001f4ca",
+            ".ppt": "\U0001f4ca", ".pptx": "\U0001f4ca",
+            ".txt": "\U0001f4c4", ".md": "\U0001f4c4", ".log": "\U0001f4c4",
+            ".py": "\U0001f40d", ".js": "\U0001f4dc", ".ts": "\U0001f4dc",
+            ".html": "\U0001f310", ".css": "\U0001f3a8",
+            ".jpg": "\U0001f5bc", ".jpeg": "\U0001f5bc", ".png": "\U0001f5bc",
+            ".gif": "\U0001f5bc", ".svg": "\U0001f5bc", ".webp": "\U0001f5bc",
+            ".mp4": "\U0001f3ac", ".avi": "\U0001f3ac", ".mkv": "\U0001f3ac", ".mov": "\U0001f3ac",
+            ".mp3": "\U0001f3b5", ".wav": "\U0001f3b5", ".flac": "\U0001f3b5",
+            ".zip": "\U0001f4e6", ".rar": "\U0001f4e6", ".7z": "\U0001f4e6", ".tar": "\U0001f4e6",
+            ".gz": "\U0001f4e6",
+            ".exe": "\u2699", ".msi": "\u2699",
+            ".json": "\U0001f4cb", ".xml": "\U0001f4cb", ".yaml": "\U0001f4cb",
+            ".yml": "\U0001f4cb",
+        }
+        return icon_map.get(ext.lower(), "\U0001f4c4")
+
+
+class FileListModel(QAbstractListModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._files: list[dict] = []
+
+    def set_files(self, files: list[dict]):
+        self.beginResetModel()
+        self._files = files
+        self.endResetModel()
+
+    def get_file(self, row: int) -> Optional[dict]:
+        if 0 <= row < len(self._files):
+            return self._files[row]
+        return None
+
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._files)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid() or index.row() >= len(self._files):
+            return None
+        f = self._files[index.row()]
+        if role == Qt.ItemDataRole.DisplayRole:
+            return f.get("name", "")
+        elif role == Qt.ItemDataRole.UserRole:
+            return f
+        elif role == Qt.ItemDataRole.ToolTipRole:
+            return f.get("path", "")
+        return None
+
+
 class FileTable(QWidget):
     file_selected = pyqtSignal(str)
     file_double_clicked = pyqtSignal(str)
@@ -126,15 +256,24 @@ class FileTable(QWidget):
     request_delete = pyqtSignal(list)
     request_rename = pyqtSignal(str, str)
 
+    VIEW_LIST = "list"
+    VIEW_GRID = "grid"
+    VIEW_GALLERY = "gallery"
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._current_dir = ""
+        self._current_view = self.VIEW_LIST
+        self._files: list[dict] = []
         self._setup_ui()
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        self._stack = QStackedWidget()
+
+        # --- List view (table) ---
         self.model = FileTableModel()
         self.table = QTableView()
         self.table.setModel(self.model)
@@ -153,19 +292,73 @@ class FileTable(QWidget):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-
         self.table.setColumnWidth(0, 30)
 
         self.table.clicked.connect(self._on_clicked)
         self.table.doubleClicked.connect(self._on_double_clicked)
         self.table.customContextMenuRequested.connect(self._on_context_menu)
         self.table.selectionModel().currentRowChanged.connect(self._on_current_row_changed)
+        self._stack.addWidget(self.table)
 
-        layout.addWidget(self.table)
+        # --- Grid view ---
+        self._grid_model = FileListModel()
+        self._grid_view = QListView()
+        self._grid_view.setModel(self._grid_model)
+        self._grid_view.setViewMode(QListView.ViewMode.IconMode)
+        self._grid_view.setResizeMode(QListView.ResizeMode.Adjust)
+        self._grid_view.setMovement(QListView.Movement.Static)
+        self._grid_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._grid_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._grid_view.setSpacing(6)
+        self._grid_view.setUniformItemSizes(True)
+        self._grid_delegate = GridItemDelegate(icon_size=48)
+        self._grid_view.setItemDelegate(self._grid_delegate)
+        self._grid_view.setGridSize(QSize(106, 96))
+
+        self._grid_view.clicked.connect(self._on_grid_clicked)
+        self._grid_view.doubleClicked.connect(self._on_grid_double_clicked)
+        self._grid_view.customContextMenuRequested.connect(self._on_grid_context_menu)
+        self._grid_view.selectionModel().currentChanged.connect(self._on_grid_current_changed)
+        self._stack.addWidget(self._grid_view)
+
+        # --- Gallery view ---
+        self._gallery_model = FileListModel()
+        self._gallery_view = QListView()
+        self._gallery_view.setModel(self._gallery_model)
+        self._gallery_view.setViewMode(QListView.ViewMode.IconMode)
+        self._gallery_view.setResizeMode(QListView.ResizeMode.Adjust)
+        self._gallery_view.setMovement(QListView.Movement.Static)
+        self._gallery_view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._gallery_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._gallery_view.setSpacing(10)
+        self._gallery_view.setUniformItemSizes(True)
+        self._gallery_delegate = GridItemDelegate(icon_size=72)
+        self._gallery_view.setItemDelegate(self._gallery_delegate)
+        self._gallery_view.setGridSize(QSize(146, 126))
+
+        self._gallery_view.clicked.connect(self._on_grid_clicked)
+        self._gallery_view.doubleClicked.connect(self._on_grid_double_clicked)
+        self._gallery_view.customContextMenuRequested.connect(self._on_gallery_context_menu)
+        self._gallery_view.selectionModel().currentChanged.connect(self._on_grid_current_changed)
+        self._stack.addWidget(self._gallery_view)
+
+        layout.addWidget(self._stack)
+
+    def set_view_mode(self, mode: str):
+        self._current_view = mode
+        if mode == self.VIEW_LIST:
+            self._stack.setCurrentWidget(self.table)
+        elif mode == self.VIEW_GRID:
+            self._stack.setCurrentWidget(self._grid_view)
+        elif mode == self.VIEW_GALLERY:
+            self._stack.setCurrentWidget(self._gallery_view)
 
     def set_files(self, files: list[dict], current_dir: str = ""):
         self._current_dir = current_dir
+        self._files = files
         self.model.set_files(files)
+        self._grid_model.set_files(files)
+        self._gallery_model.set_files(files)
 
     def _on_clicked(self, index):
         f = self.model.get_file(index.row())
@@ -189,6 +382,44 @@ class FileTable(QWidget):
         f = self.model.get_file(index.row())
         if f:
             self.file_double_clicked.emit(f["path"])
+
+    # --- Grid/Gallery handlers ---
+
+    def _on_grid_clicked(self, index):
+        model = index.model()
+        f = model.get_file(index.row()) if model else None
+        if f:
+            self.file_selected.emit(f["path"])
+
+    def _on_grid_double_clicked(self, index):
+        model = index.model()
+        f = model.get_file(index.row()) if model else None
+        if f:
+            self.file_double_clicked.emit(f["path"])
+
+    def _on_grid_current_changed(self, current, previous):
+        if current.isValid():
+            model = current.model()
+            f = model.get_file(current.row()) if model else None
+            if f:
+                self.file_selected.emit(f["path"])
+
+    def _on_grid_context_menu(self, position):
+        self._show_context_menu(self._grid_view, self._grid_model, position)
+
+    def _on_gallery_context_menu(self, position):
+        self._show_context_menu(self._gallery_view, self._gallery_model, position)
+
+    def _show_context_menu(self, view, model, position):
+        selected_paths = self._get_selected_paths_from_view(view, model)
+        if not selected_paths:
+            menu = QMenu(self)
+            new_folder_action = QAction("New Folder", self)
+            new_folder_action.triggered.connect(self._create_new_folder)
+            menu.addAction(new_folder_action)
+            menu.exec(view.viewport().mapToGlobal(position))
+            return
+        self._build_file_context_menu(selected_paths, view.viewport().mapToGlobal(position))
 
     def _on_context_menu(self, position):
         index = self.table.indexAt(position)
@@ -250,7 +481,58 @@ class FileTable(QWidget):
 
         menu.exec(self.table.viewport().mapToGlobal(position))
 
+    def _build_file_context_menu(self, selected_paths: list[str], global_pos):
+        menu = QMenu(self)
+
+        if len(selected_paths) == 1:
+            path = selected_paths[0]
+            open_action = QAction("Open", self)
+            open_action.triggered.connect(lambda: self._open_file(path))
+            menu.addAction(open_action)
+            open_location_action = QAction("Open File Location", self)
+            open_location_action.triggered.connect(lambda: self._open_location(path))
+            menu.addAction(open_location_action)
+            menu.addSeparator()
+            rename_action = QAction("Rename", self)
+            rename_action.triggered.connect(lambda: self._rename_file(path))
+            menu.addAction(rename_action)
+
+        menu.addSeparator()
+        copy_action = QAction(f"Copy ({len(selected_paths)} items)" if len(selected_paths) > 1 else "Copy", self)
+        copy_action.triggered.connect(lambda: self._copy_files(selected_paths))
+        menu.addAction(copy_action)
+        move_action = QAction(f"Move ({len(selected_paths)} items)" if len(selected_paths) > 1 else "Move to...", self)
+        move_action.triggered.connect(lambda: self._move_files(selected_paths))
+        menu.addAction(move_action)
+        menu.addSeparator()
+        delete_action = QAction(f"Delete ({len(selected_paths)} items)" if len(selected_paths) > 1 else "Delete", self)
+        delete_action.triggered.connect(lambda: self.request_delete.emit(selected_paths))
+        menu.addAction(delete_action)
+        menu.addSeparator()
+        star_action = QAction("Toggle Star", self)
+        star_action.triggered.connect(lambda: self._toggle_stars(selected_paths))
+        menu.addAction(star_action)
+        tag_action = QAction("Add Tag...", self)
+        tag_action.triggered.connect(lambda: self._add_tag(selected_paths))
+        menu.addAction(tag_action)
+
+        menu.exec(global_pos)
+
+    def _get_selected_paths_from_view(self, view, model) -> list[str]:
+        paths = []
+        seen = set()
+        for index in view.selectionModel().selectedIndexes():
+            f = model.get_file(index.row())
+            if f and f["path"] not in seen:
+                paths.append(f["path"])
+                seen.add(f["path"])
+        return paths
+
     def _get_selected_paths(self) -> list[str]:
+        if self._current_view == self.VIEW_GRID:
+            return self._get_selected_paths_from_view(self._grid_view, self._grid_model)
+        elif self._current_view == self.VIEW_GALLERY:
+            return self._get_selected_paths_from_view(self._gallery_view, self._gallery_model)
         paths = []
         seen = set()
         for index in self.table.selectionModel().selectedRows():

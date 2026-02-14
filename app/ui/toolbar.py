@@ -3,7 +3,7 @@ import os
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QToolBar, QWidget, QHBoxLayout, QPushButton, QLineEdit,
-    QLabel, QSizePolicy,
+    QLabel, QSizePolicy, QButtonGroup,
 )
 from PyQt6.QtGui import QAction
 
@@ -18,6 +18,7 @@ class NavigationToolbar(QToolBar):
     new_folder = pyqtSignal()
     open_settings = pyqtSignal()
     show_starred = pyqtSignal()
+    view_mode_changed = pyqtSignal(str)  # "list", "grid", "gallery"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,6 +82,50 @@ class NavigationToolbar(QToolBar):
         self._index_all_btn.setToolTip("Re-index all registered folders")
         self._index_all_btn.clicked.connect(self.index_all.emit)
         self.addWidget(self._index_all_btn)
+
+        self.addSeparator()
+
+        self._view_group = QButtonGroup(self)
+        self._view_group.setExclusive(True)
+
+        view_btn_style = """
+            QPushButton {
+                padding: 2px 8px; border: 1px solid #ccc;
+                border-radius: 3px; background: white; font-size: 12px;
+            }
+            QPushButton:checked {
+                background: #2196F3; color: white; border-color: #1976D2;
+            }
+            QPushButton:hover:!checked { background: #eee; }
+        """
+
+        self._list_btn = QPushButton("\u2261")
+        self._list_btn.setToolTip("List view")
+        self._list_btn.setFixedSize(30, 28)
+        self._list_btn.setCheckable(True)
+        self._list_btn.setChecked(True)
+        self._list_btn.setStyleSheet(view_btn_style)
+        self._list_btn.clicked.connect(lambda: self.view_mode_changed.emit("list"))
+        self._view_group.addButton(self._list_btn)
+        self.addWidget(self._list_btn)
+
+        self._grid_btn = QPushButton("\u25a6")
+        self._grid_btn.setToolTip("Grid view")
+        self._grid_btn.setFixedSize(30, 28)
+        self._grid_btn.setCheckable(True)
+        self._grid_btn.setStyleSheet(view_btn_style)
+        self._grid_btn.clicked.connect(lambda: self.view_mode_changed.emit("grid"))
+        self._view_group.addButton(self._grid_btn)
+        self.addWidget(self._grid_btn)
+
+        self._gallery_btn = QPushButton("\u25a3")
+        self._gallery_btn.setToolTip("Gallery view")
+        self._gallery_btn.setFixedSize(30, 28)
+        self._gallery_btn.setCheckable(True)
+        self._gallery_btn.setStyleSheet(view_btn_style)
+        self._gallery_btn.clicked.connect(lambda: self.view_mode_changed.emit("gallery"))
+        self._view_group.addButton(self._gallery_btn)
+        self.addWidget(self._gallery_btn)
 
         self.addSeparator()
 

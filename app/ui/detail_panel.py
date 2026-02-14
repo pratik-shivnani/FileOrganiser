@@ -166,7 +166,11 @@ class DetailPanel(QWidget):
         details = []
         details.append(f"<b>Path:</b> {meta.path}")
         details.append(f"<b>Type:</b> {'Folder' if meta.is_directory else (meta.extension or 'File')}")
-        if not meta.is_directory:
+        if meta.is_directory:
+            from app.core.metadata import get_directory_size
+            dir_size = get_directory_size(meta.path)
+            details.append(f"<b>Size:</b> {format_file_size(dir_size)}")
+        else:
             details.append(f"<b>Size:</b> {format_file_size(meta.size)}")
         if meta.mime_type:
             details.append(f"<b>MIME:</b> {meta.mime_type}")

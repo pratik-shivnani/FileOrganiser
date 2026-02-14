@@ -159,6 +159,7 @@ class FileTable(QWidget):
         self.table.clicked.connect(self._on_clicked)
         self.table.doubleClicked.connect(self._on_double_clicked)
         self.table.customContextMenuRequested.connect(self._on_context_menu)
+        self.table.selectionModel().currentRowChanged.connect(self._on_current_row_changed)
 
         layout.addWidget(self.table)
 
@@ -176,6 +177,12 @@ class FileTable(QWidget):
                 self.model.dataChanged.emit(index, index)
                 self.file_starred.emit(path, new_state)
             else:
+                self.file_selected.emit(f["path"])
+
+    def _on_current_row_changed(self, current, previous):
+        if current.isValid():
+            f = self.model.get_file(current.row())
+            if f:
                 self.file_selected.emit(f["path"])
 
     def _on_double_clicked(self, index):

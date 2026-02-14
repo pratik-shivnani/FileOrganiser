@@ -75,6 +75,7 @@ class OllamaParserThread(QThread):
                 filters=data.get("filters", {}),
                 target=data.get("target"),
                 tag=data.get("tag"),
+                response=data.get("response", ""),
                 raw_query=self.query,
             )
             self.result_ready.emit(cmd)

@@ -5,10 +5,13 @@ You MUST respond with ONLY valid JSON, no other text. The JSON must have this st
     "action": "<action_type>",
     "filters": { ... },
     "target": "<optional target path or name>",
-    "tag": "<optional tag name>"
+    "tag": "<optional tag name>",
+    "response": "<short human-friendly message describing what you're doing>"
 }
 
-Valid actions: search, move, copy, rename, delete, tag, untag, star, unstar, create_folder
+The "response" field is REQUIRED. It should be a brief, friendly message describing the action you are taking.
+
+Valid actions: search, move, copy, rename, delete, tag, untag, star, unstar, create_folder, navigate
 
 Filter fields (all optional):
 - "directory": directory path to search in
@@ -57,6 +60,15 @@ Query: "rename report.docx to Q4-report.docx"
 Response: {"action": "rename", "filters": {"name_pattern": "report.docx"}, "target": "Q4-report.docx"}
 
 Query: "show me all videos modified this week"
-Response: {"action": "search", "filters": {"extension": "mp4", "modified_after": "7d"}}
+Response: {"action": "search", "filters": {"extension": "mp4", "modified_after": "7d"}, "response": "Searching for video files modified in the last week."}
 
-Remember: respond with ONLY the JSON object, nothing else."""
+Query: "go to Downloads"
+Response: {"action": "navigate", "target": "Downloads", "response": "Navigating to Downloads folder."}
+
+Query: "open Documents/Projects"
+Response: {"action": "navigate", "target": "Documents/Projects", "response": "Opening Documents/Projects folder."}
+
+Query: "take me to the desktop"
+Response: {"action": "navigate", "target": "Desktop", "response": "Navigating to your Desktop."}
+
+Remember: respond with ONLY the JSON object, nothing else. Always include the "response" field."""

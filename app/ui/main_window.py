@@ -27,7 +27,7 @@ from app.core.tag_manager import get_starred_files, is_starred
 from app.nlp.parser import OllamaParserThread, parse_size_string, parse_time_string, check_ollama_connection
 from app.nlp.models import ParsedCommand
 from app.ui.toolbar import NavigationToolbar
-from app.ui.command_bar import CommandBar
+from app.ui.chat_panel import ChatPanel
 from app.ui.folder_tree import FolderTree
 from app.ui.file_table import FileTable
 from app.ui.detail_panel import DetailPanel
@@ -71,16 +71,19 @@ class MainWindow(QMainWindow):
         self._toolbar.show_starred.connect(self._show_starred)
         main_layout.addWidget(self._toolbar)
 
-        self._command_bar = CommandBar()
-        self._command_bar.query_submitted.connect(self._on_nlp_query)
-        main_layout.addWidget(self._command_bar)
+        outer_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        left_section = QWidget()
+        left_layout = QVBoxLayout(left_section)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
+        file_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._folder_tree = FolderTree()
         self._folder_tree.directory_selected.connect(self._navigate_to)
         self._folder_tree.directory_double_clicked.connect(self._navigate_to)
-        splitter.addWidget(self._folder_tree)
+        file_splitter.addWidget(self._folder_tree)
 
         self._file_table = FileTable()
         self._file_table.file_selected.connect(self._on_file_selected)
@@ -90,20 +93,30 @@ class MainWindow(QMainWindow):
         self._file_table.request_delete.connect(self._do_delete)
         self._file_table.request_rename.connect(self._do_rename)
         self._file_table.file_starred.connect(self._on_file_starred)
-        splitter.addWidget(self._file_table)
+        file_splitter.addWidget(self._file_table)
 
         self._detail_panel = DetailPanel()
         self._detail_panel.star_toggled.connect(self._on_file_starred)
-        splitter.addWidget(self._detail_panel)
+        file_splitter.addWidget(self._detail_panel)
 
-        splitter.setSizes([TREE_PANEL_WIDTH, 600, DETAIL_PANEL_WIDTH])
-        main_layout.addWidget(splitter)
+        file_splitter.setSizes([TREE_PANEL_WIDTH, 600, DETAIL_PANEL_WIDTH])
+        left_layout.addWidget(file_splitter)
+
+        outer_splitter.addWidget(left_section)
+
+        self._chat_panel = ChatPanel()
+        self._chat_panel.query_submitted.connect(self._on_nlp_query)
+        self._chat_panel.setMinimumWidth(280)
+        outer_splitter.addWidget(self._chat_panel)
+
+        outer_splitter.setSizes([1050, 350])
+        main_layout.addWidget(outer_splitter)
 
         self._status_bar = StatusBar()
         self.setStatusBar(self._status_bar)
 
     def _setup_shortcuts(self):
-        QShortcut(QKeySequence("Ctrl+L"), self, self._command_bar.focus_input)
+        QShortcut(QKeySequence("Ctrl+L"), self, self._chat_panel.focus_input)
         QShortcut(QKeySequence("Ctrl+N"), self, self._create_new_folder)
         QShortcut(QKeySequence("Ctrl+Z"), self, self._undo_operation)
         QShortcut(QKeySequence("F5"), self, self._refresh_current)
@@ -145,7 +158,7 @@ class MainWindow(QMainWindow):
         self._add_menu_action(tools_menu, "Index Current Folder", self._index_current_folder)
         self._add_menu_action(tools_menu, "Index All Folders", self._index_all_folders)
         tools_menu.addSeparator()
-        self._add_menu_action(tools_menu, "Focus Command Bar", self._command_bar.focus_input, "Ctrl+L")
+        self._add_menu_action(tools_menu, "Focus Chat", self._chat_panel.focus_input, "Ctrl+L")
 
     def _navigate_to_home(self):
         home = str(Path.home())
@@ -368,7 +381,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(1000, _check)
 
     def _on_nlp_query(self, query: str):
-        self._command_bar.set_loading(True)
+        self._chat_panel.set_loading(True)
         self._status_bar.set_message(f"Processing: {query}")
 
         self._parser_thread = OllamaParserThread(query)
@@ -377,19 +390,23 @@ class MainWindow(QMainWindow):
         self._parser_thread.start()
 
     def _on_nlp_result(self, cmd: ParsedCommand):
-        self._command_bar.set_loading(False)
+        self._chat_panel.set_loading(False)
+        if cmd.response:
+            self._chat_panel.add_assistant_message(cmd.response)
         self._execute_parsed_command(cmd)
 
     def _on_nlp_error(self, error: str):
-        self._command_bar.set_loading(False)
+        self._chat_panel.set_loading(False)
+        self._chat_panel.add_assistant_message(f"<span style='color:#d32f2f;'>Error: {error}</span>")
         self._status_bar.set_message(f"NLP Error: {error}")
-        QMessageBox.warning(self, "NLP Error", error)
 
     def _execute_parsed_command(self, cmd: ParsedCommand):
         action = cmd.action
         filters = cmd.filters
 
-        if action == "search":
+        if action == "navigate":
+            self._execute_navigate(cmd)
+        elif action == "search":
             self._execute_search(filters)
         elif action in ("move", "copy"):
             self._execute_file_action(cmd)
@@ -405,6 +422,22 @@ class MainWindow(QMainWindow):
             self._execute_create_folder(cmd)
         else:
             self._status_bar.set_message(f"Unknown action: {action}")
+
+    def _execute_navigate(self, cmd: ParsedCommand):
+        target = cmd.target or ""
+        if not target:
+            self._chat_panel.add_assistant_message("I need a folder path to navigate to.")
+            return
+        if not os.path.isabs(target):
+            target = os.path.join(str(Path.home()), target)
+        if os.path.isdir(target):
+            self._navigate_to(target)
+            if not cmd.response:
+                self._chat_panel.add_assistant_message(f"Navigated to <b>{target}</b>")
+        else:
+            self._chat_panel.add_assistant_message(
+                f"Folder not found: <b>{target}</b>. Please check the path."
+            )
 
     def _execute_search(self, filters: dict):
         kwargs = {}
@@ -460,18 +493,19 @@ class MainWindow(QMainWindow):
         if results:
             self._file_table.set_files(results, "Search Results")
             self._status_bar.set_message(f"Found {len(results)} files")
-            self._toolbar.set_path(f"Search: {self._command_bar._input.text()}", add_to_history=False)
+            self._toolbar.set_path("Search Results", add_to_history=False)
+            self._chat_panel.add_assistant_message(f"Found <b>{len(results)}</b> matching files.")
         else:
             self._status_bar.set_message("No files found. Try indexing the folder first.")
-            QMessageBox.information(
-                self, "No Results",
-                "No files matched your query.\n\nMake sure the folder is indexed first (click 'Index Folder')."
+            self._chat_panel.add_assistant_message(
+                "No files matched your query. Make sure the folder is indexed first "
+                "(click <b>Index Folder</b> in the toolbar)."
             )
 
     def _execute_file_action(self, cmd: ParsedCommand):
         results = search_files(**self._build_search_kwargs(cmd.filters))
         if not results:
-            QMessageBox.information(self, "No Files", "No matching files found.")
+            self._chat_panel.add_assistant_message("No matching files found for this operation.")
             return
 
         paths = [r["path"] for r in results]
@@ -495,7 +529,7 @@ class MainWindow(QMainWindow):
     def _execute_delete(self, cmd: ParsedCommand):
         results = search_files(**self._build_search_kwargs(cmd.filters))
         if not results:
-            QMessageBox.information(self, "No Files", "No matching files found.")
+            self._chat_panel.add_assistant_message("No matching files found to delete.")
             return
         paths = [r["path"] for r in results]
         self._do_delete(paths)
@@ -503,10 +537,10 @@ class MainWindow(QMainWindow):
     def _execute_rename_nlp(self, cmd: ParsedCommand):
         results = search_files(**self._build_search_kwargs(cmd.filters))
         if not results:
-            QMessageBox.information(self, "No Files", "No matching files found.")
+            self._chat_panel.add_assistant_message("No matching files found to rename.")
             return
         if len(results) > 1:
-            QMessageBox.warning(self, "Rename", "Multiple files matched. Rename works on a single file.")
+            self._chat_panel.add_assistant_message("Multiple files matched. Rename works on a single file — please be more specific.")
             return
         new_name = cmd.target
         if not new_name:
@@ -518,7 +552,7 @@ class MainWindow(QMainWindow):
     def _execute_tag(self, cmd: ParsedCommand):
         results = search_files(**self._build_search_kwargs(cmd.filters))
         if not results:
-            QMessageBox.information(self, "No Files", "No matching files found.")
+            self._chat_panel.add_assistant_message("No matching files found to tag.")
             return
         tag = cmd.tag
         if not tag:
@@ -527,16 +561,18 @@ class MainWindow(QMainWindow):
                 return
         from app.core.tag_manager import bulk_tag
         count = bulk_tag([r["path"] for r in results], tag)
+        self._chat_panel.add_assistant_message(f"Tagged <b>{count}</b> files as <b>{tag}</b>.")
         self._status_bar.set_message(f"Tagged {count} files as '{tag}'")
         self._refresh_current()
 
     def _execute_star(self, cmd: ParsedCommand):
         results = search_files(**self._build_search_kwargs(cmd.filters))
         if not results:
-            QMessageBox.information(self, "No Files", "No matching files found.")
+            self._chat_panel.add_assistant_message("No matching files found to star.")
             return
         from app.core.tag_manager import bulk_star
         count = bulk_star([r["path"] for r in results])
+        self._chat_panel.add_assistant_message(f"Starred <b>{count}</b> files.")
         self._status_bar.set_message(f"Starred {count} files")
         self._refresh_current()
 

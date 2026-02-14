@@ -11,7 +11,9 @@ A native desktop file manager with NLP-powered search and file operations, using
 - **NLP file operations** — "move all screenshots from Downloads to Pictures"
 - **On-demand indexing** — index specific folders for fast NLP-powered search
 - **Operation history** — log of all actions with undo support
-- **Keyboard shortcuts** — Ctrl+C/V/X, F2 rename, Delete, Ctrl+N new folder, Ctrl+L command bar
+- **AI Chat Panel** — chat interface on the right with message history and AI responses
+- **AI navigation** — "go to Downloads" or "open Documents/Projects" navigates the file manager
+- **Keyboard shortcuts** — Ctrl+C/V/X, F2 rename, Delete, Ctrl+N new folder, Ctrl+L focus chat
 
 ## Prerequisites
 
@@ -47,23 +49,25 @@ python main.py
 - Double-click files to open them
 - Use the path bar to navigate directly
 
-### NLP Command Bar (Ctrl+L)
-Type natural language queries in the command bar at the top:
+### AI Chat Panel (Ctrl+L)
+The chat panel on the right side lets you interact with the AI assistant. Type natural language queries and get responses:
 
-- `find all PDFs in Documents`
-- `show files larger than 100MB`
-- `move screenshots from Downloads to Pictures`
-- `star all Python files in Projects`
-- `tag invoices as finance`
-- `what's taking up space?`
+- `go to Downloads` — navigates to the folder
+- `find all PDFs in Documents` — searches indexed files
+- `show files larger than 100MB` — filters by size
+- `move screenshots from Downloads to Pictures` — moves files with confirmation
+- `star all Python files in Projects` — stars matching files
+- `tag invoices as finance` — tags matching files
+- `what's taking up space?` — shows largest files
+- `create a folder called Archives in Documents` — creates folders
 
-**Note:** Folders must be indexed first for NLP search to work. Click "Index Folder" in the toolbar.
+**Note:** Folders must be indexed first for search to work. Click "Index Folder" in the toolbar.
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 |----------|--------|
-| Ctrl+L | Focus command bar |
+| Ctrl+L | Focus chat input |
 | Ctrl+N | New folder |
 | Ctrl+Z | Undo last operation |
 | F2 | Rename selected |

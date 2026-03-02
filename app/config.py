@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 APP_NAME = "File Organiser"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 
 if sys.platform == "win32":
     APP_DATA_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / APP_NAME

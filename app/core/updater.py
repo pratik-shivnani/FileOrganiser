@@ -123,11 +123,42 @@ def apply_update(downloaded_exe: str):
 
     bat_path = os.path.join(tempfile.gettempdir(), "file_organiser_update.bat")
     bat_content = f"""@echo off
-timeout /t 2 /nobreak >nul
-del "{current_exe}"
-move "{downloaded_exe}" "{current_exe}"
-start "" "{current_exe}"
-del "%~f0"
+setlocal
+
+set "OLD={current_exe}"
+set "NEW={downloaded_exe}"
+
+echo Waiting for application to close...
+timeout /t 3 /nobreak >nul
+
+rem Retry deleting the old exe up to 10 times (exe may still be locked)
+set RETRIES=0
+:retry_delete
+del "%OLD%" >nul 2>&1
+if exist "%OLD%" (
+    set /a RETRIES+=1
+    if %RETRIES% GEQ 10 (
+        echo ERROR: Could not replace old exe after 10 retries.
+        pause
+        goto :cleanup
+    )
+    timeout /t 1 /nobreak >nul
+    goto :retry_delete
+)
+
+copy /Y "%NEW%" "%OLD%" >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: Failed to copy new exe into place.
+    pause
+    goto :cleanup
+)
+
+echo Update complete. Starting new version...
+start "" "%OLD%"
+
+:cleanup
+del "%NEW%" >nul 2>&1
+del "%~f0" >nul 2>&1
 """
     with open(bat_path, "w") as f:
         f.write(bat_content)

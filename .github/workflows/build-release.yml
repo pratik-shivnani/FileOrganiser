@@ -47,7 +47,13 @@ jobs:
 
       - name: Build exe with PyInstaller
         run: |
-          pyinstaller --noconfirm --onefile --windowed --name "FileOrganiser" --icon NONE main.py
+          pyinstaller --noconfirm --clean --onefile --windowed --name "FileOrganiser" --collect-all PyQt6 --hidden-import PyQt6.QtCore --hidden-import PyQt6.QtGui --hidden-import PyQt6.QtWidgets --hidden-import PyQt6.sip main.py
+
+      - name: Verify exe exists
+        run: |
+          if (!(Test-Path "dist/FileOrganiser.exe")) { Write-Error "EXE not found!"; exit 1 }
+          $size = (Get-Item "dist/FileOrganiser.exe").Length / 1MB
+          Write-Host "FileOrganiser.exe size: $([math]::Round($size, 2)) MB"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

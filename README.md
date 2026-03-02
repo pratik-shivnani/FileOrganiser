@@ -13,7 +13,15 @@ A native desktop file manager with NLP-powered search and file operations, using
 - **Operation history** — log of all actions with undo support
 - **AI Chat Panel** — chat interface on the right with message history and AI responses
 - **AI navigation** — "go to Downloads" or "open Documents/Projects" navigates the file manager
+- **Disk Cleanup** — find largest files, detect potential duplicates, AI-powered cleanup suggestions
+- **Auto-updates** — checks GitHub releases for new versions and self-updates the exe
 - **Keyboard shortcuts** — Ctrl+C/V/X, F2 rename, Delete, Ctrl+N new folder, Ctrl+L focus chat
+
+## Download
+
+Download the latest `.exe` from [GitHub Releases](https://github.com/pratik-shivnani/FileOrganiser/releases). No installation needed — just run it.
+
+The app checks for updates on startup and can self-update from **Help → Check for Updates**.
 
 ## Prerequisites
 
@@ -75,6 +83,7 @@ The chat panel on the right side lets you interact with the AI assistant. Type n
 | Delete | Delete selected |
 | Alt+Up | Navigate up |
 | Ctrl+H | Operation history |
+| Ctrl+Shift+D | Disk cleanup |
 
 ## Tech Stack
 

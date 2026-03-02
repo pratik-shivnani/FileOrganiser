@@ -36,6 +36,9 @@ from app.ui.dialogs.confirm_action import ConfirmActionDialog
 from app.ui.dialogs.new_folder import NewFolderDialog
 from app.ui.dialogs.settings import SettingsDialog
 from app.ui.dialogs.operation_log import OperationLogDialog
+from app.ui.dialogs.disk_cleanup import DiskCleanupDialog
+from app.core.updater import UpdateCheckThread, is_frozen
+from app.config import APP_VERSION
 
 
 class MainWindow(QMainWindow):
@@ -49,6 +52,7 @@ class MainWindow(QMainWindow):
         self._setup_menu()
         self._check_ollama()
         self._navigate_to_home()
+        self._check_for_updates(silent=True)
 
     def _setup_ui(self):
         self.setWindowTitle(APP_NAME)
@@ -70,6 +74,7 @@ class MainWindow(QMainWindow):
         self._toolbar.open_settings.connect(self._open_settings)
         self._toolbar.show_starred.connect(self._show_starred)
         self._toolbar.view_mode_changed.connect(self._on_view_mode_changed)
+        self._toolbar.disk_cleanup.connect(self._open_disk_cleanup)
         main_layout.addWidget(self._toolbar)
 
         outer_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -125,6 +130,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Delete"), self, self._delete_selected)
         QShortcut(QKeySequence("F2"), self, self._rename_selected)
         QShortcut(QKeySequence("Ctrl+H"), self, self._show_operation_log)
+        QShortcut(QKeySequence("Ctrl+Shift+D"), self, self._open_disk_cleanup)
 
     def _add_menu_action(self, menu, text, slot, shortcut=None):
         action = QAction(text, self)
@@ -159,7 +165,14 @@ class MainWindow(QMainWindow):
         self._add_menu_action(tools_menu, "Index Current Folder", self._index_current_folder)
         self._add_menu_action(tools_menu, "Index All Folders", self._index_all_folders)
         tools_menu.addSeparator()
+        self._add_menu_action(tools_menu, "Disk Cleanup...", self._open_disk_cleanup, "Ctrl+Shift+D")
+        tools_menu.addSeparator()
         self._add_menu_action(tools_menu, "Focus Chat", self._chat_panel.focus_input, "Ctrl+L")
+
+        help_menu = menubar.addMenu("&Help")
+        self._add_menu_action(help_menu, "Check for Updates...", lambda: self._check_for_updates(silent=False))
+        help_menu.addSeparator()
+        self._add_menu_action(help_menu, f"About (v{APP_VERSION})", self._show_about)
 
     def _navigate_to_home(self):
         home = str(Path.home())
@@ -661,6 +674,44 @@ class MainWindow(QMainWindow):
         self._file_table.set_files(files, "Starred")
         self._toolbar.set_path("Starred Files", add_to_history=False)
         self._status_bar.set_message(f"{len(files)} starred files")
+
+    # --- Disk Cleanup ---
+
+    def _open_disk_cleanup(self):
+        dialog = DiskCleanupDialog(self._current_dir, self)
+        dialog.files_deleted.connect(self._refresh_current)
+        dialog.exec()
+
+    # --- Updates ---
+
+    def _check_for_updates(self, silent: bool = True):
+        self._update_check_silent = silent
+        self._update_thread = UpdateCheckThread()
+        self._update_thread.update_available.connect(self._on_update_available)
+        self._update_thread.no_update.connect(self._on_no_update)
+        self._update_thread.error.connect(self._on_update_error)
+        self._update_thread.start()
+
+    def _on_update_available(self, version: str, download_url: str, release_notes: str):
+        from app.ui.dialogs.update_dialog import UpdateDialog
+        dialog = UpdateDialog(version, download_url, release_notes, self)
+        dialog.exec()
+
+    def _on_no_update(self):
+        if not self._update_check_silent:
+            QMessageBox.information(self, "Updates", f"You're running the latest version (v{APP_VERSION}).")
+
+    def _on_update_error(self, error: str):
+        if not self._update_check_silent:
+            QMessageBox.warning(self, "Update Error", f"Could not check for updates:\n{error}")
+
+    def _show_about(self):
+        QMessageBox.about(
+            self, "About File Organiser",
+            f"<h3>File Organiser v{APP_VERSION}</h3>"
+            "<p>A desktop file manager with NLP-powered search and AI chat.</p>"
+            "<p>Built with PyQt6 + Ollama.</p>"
+        )
 
     # --- Settings ---
 

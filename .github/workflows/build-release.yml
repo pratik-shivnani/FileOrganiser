@@ -1,0 +1,70 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller requests packaging
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update version in config
+        shell: python
+        run: |
+          import re
+          with open('app/config.py', 'r') as f:
+              content = f.read()
+          content = re.sub(
+              r'APP_VERSION = ".*?"',
+              f'APP_VERSION = "${{ steps.version.outputs.VERSION }}"',
+              content
+          )
+          with open('app/config.py', 'w') as f:
+              f.write(content)
+
+      - name: Build exe with PyInstaller
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name "FileOrganiser" --icon NONE main.py
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: File Organiser ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## File Organiser ${{ steps.version.outputs.VERSION }}
+
+            ### Downloads
+            - **Windows**: `FileOrganiser.exe`
+
+            ### Installation
+            1. Download `FileOrganiser.exe`
+            2. Run it — no installation needed
+            3. Make sure Ollama is running (`ollama serve`) for AI features
+          draft: false
+          prerelease: false
+          files: |
+            dist/FileOrganiser.exe

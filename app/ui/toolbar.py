@@ -18,6 +18,7 @@ class NavigationToolbar(QToolBar):
     new_folder = pyqtSignal()
     open_settings = pyqtSignal()
     show_starred = pyqtSignal()
+    disk_cleanup = pyqtSignal()
     view_mode_changed = pyqtSignal(str)  # "list", "grid", "gallery"
 
     def __init__(self, parent=None):
@@ -82,6 +83,11 @@ class NavigationToolbar(QToolBar):
         self._index_all_btn.setToolTip("Re-index all registered folders")
         self._index_all_btn.clicked.connect(self.index_all.emit)
         self.addWidget(self._index_all_btn)
+
+        self._cleanup_btn = QPushButton("Cleanup")
+        self._cleanup_btn.setToolTip("Find large files & cleanup (Ctrl+Shift+D)")
+        self._cleanup_btn.clicked.connect(self.disk_cleanup.emit)
+        self.addWidget(self._cleanup_btn)
 
         self.addSeparator()
 

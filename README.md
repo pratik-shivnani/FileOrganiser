@@ -4,8 +4,9 @@ A native desktop file manager with NLP-powered search and file operations, using
 
 ## Features
 
-- **Windows Explorer-style UI** — folder tree, file table with sortable columns, detail panel
+- **Windows Explorer-style UI** — folder tree, file table with sortable columns, detail panel, list/grid/gallery views
 - **Full file management** — create folders, copy, move, rename, delete (to recycle bin)
+- **Folder sizes** — asynchronously calculates and displays folder sizes in the file table
 - **Tags & Stars** — tag files with custom labels, star/favorite files
 - **Natural language search** — "find all PDFs larger than 10MB modified this week"
 - **NLP file operations** — "move all screenshots from Downloads to Pictures"

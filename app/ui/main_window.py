@@ -38,6 +38,7 @@ from app.ui.dialogs.settings import SettingsDialog
 from app.ui.dialogs.operation_log import OperationLogDialog
 from app.ui.dialogs.disk_cleanup import DiskCleanupDialog
 from app.core.updater import UpdateCheckThread, is_frozen
+from app.core.folder_size import FolderSizeThread
 from app.config import APP_VERSION
 
 
@@ -47,6 +48,7 @@ class MainWindow(QMainWindow):
         self._current_dir = ""
         self._scanner_thread: Optional[ScannerThread] = None
         self._parser_thread: Optional[OllamaParserThread] = None
+        self._folder_size_thread: Optional[FolderSizeThread] = None
         self._setup_ui()
         self._setup_shortcuts()
         self._setup_menu()
@@ -231,6 +233,18 @@ class MainWindow(QMainWindow):
         self._file_table.set_files(files, directory)
         total_size = sum(f["size"] for f in files if not f["is_directory"])
         self._status_bar.set_file_info(len(files), total_size)
+
+        folder_paths = [f["path"] for f in files if f["is_directory"]]
+        if folder_paths:
+            if self._folder_size_thread and self._folder_size_thread.isRunning():
+                self._folder_size_thread.cancel()
+                self._folder_size_thread.wait(500)
+            self._folder_size_thread = FolderSizeThread(folder_paths)
+            self._folder_size_thread.size_ready.connect(self._on_folder_size_ready)
+            self._folder_size_thread.start()
+
+    def _on_folder_size_ready(self, path: str, size: int):
+        self._file_table.update_folder_size(path, size)
 
     def _on_file_selected(self, path: str):
         self._detail_panel.show_file(path)

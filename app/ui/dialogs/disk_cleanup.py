@@ -104,7 +104,7 @@ class DiskCleanupDialog(QDialog):
         self._file_tree = QTreeWidget()
         self._file_tree.setHeaderLabels(["", "Name", "Size", "Type", "Location", "Modified"])
         self._file_tree.setRootIsDecorated(False)
-        self._file_tree.setAlternatingRowColors(True)
+        self._file_tree.setAlternatingRowColors(False)
         self._file_tree.setSortingEnabled(True)
         header = self._file_tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
@@ -149,7 +149,7 @@ class DiskCleanupDialog(QDialog):
 
         self._dup_tree = QTreeWidget()
         self._dup_tree.setHeaderLabels(["", "Name", "Size", "Location"])
-        self._dup_tree.setAlternatingRowColors(True)
+        self._dup_tree.setAlternatingRowColors(False)
         dup_header = self._dup_tree.header()
         dup_header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         dup_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)

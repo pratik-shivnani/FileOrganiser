@@ -64,9 +64,10 @@ class FileTableModel(QAbstractTableModel):
             elif col == self.COL_NAME:
                 return f.get("name", "")
             elif col == self.COL_SIZE:
+                size = f.get("size", 0)
                 if f.get("is_directory"):
-                    return ""
-                return format_file_size(f.get("size", 0))
+                    return format_file_size(size) if size > 0 else "..."
+                return format_file_size(size)
             elif col == self.COL_TYPE:
                 if f.get("is_directory"):
                     return "Folder"
@@ -93,6 +94,14 @@ class FileTableModel(QAbstractTableModel):
             return f.get("path", "")
 
         return None
+
+    def update_folder_size(self, path: str, size: int):
+        for i, f in enumerate(self._files):
+            if f.get("path") == path and f.get("is_directory"):
+                f["size"] = size
+                idx = self.index(i, self.COL_SIZE)
+                self.dataChanged.emit(idx, idx)
+                return
 
     def sort(self, column, order=Qt.SortOrder.AscendingOrder):
         self.beginResetModel()
@@ -280,7 +289,7 @@ class FileTable(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setSortingEnabled(True)
-        self.table.setAlternatingRowColors(True)
+        self.table.setAlternatingRowColors(False)
         self.table.setShowGrid(False)
         self.table.verticalHeader().setVisible(False)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -603,6 +612,9 @@ class FileTable(QWidget):
     def get_selected_path(self) -> Optional[str]:
         paths = self._get_selected_paths()
         return paths[0] if paths else None
+
+    def update_folder_size(self, path: str, size: int):
+        self.model.update_folder_size(path, size)
 
     def get_file_count(self) -> int:
         return self.model.rowCount()
